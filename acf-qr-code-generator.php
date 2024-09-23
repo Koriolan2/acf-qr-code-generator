@@ -36,26 +36,46 @@ function acf_generate_qr_code() {
         wp_send_json_error(array('message' => 'Неправильний ID поста або URL.'));
     }
 
-    // Генерація QR-коду через сторонній API
-    $api_url = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' . urlencode($qr_url);
+    // Налаштування змінних для розміру, кольору та формату QR-коду
+    $qr_size = '350x350';  // Розмір QR-коду
+    $qr_color = '044e98';  // Колір QR-коду (чорний)
+    $qr_format = 'svg';    // Формат файлу (SVG)
+
+    // Отримуємо останній сегмент URL (слуг) для імені файлу
+    $parsed_url = wp_parse_url($qr_url);
+    $path_segments = explode('/', trim($parsed_url['path'], '/'));
+    $slug = end($path_segments);  // Остання частина URL
+
+    // Формуємо назву файлу на основі слуга та додаємо суфікс '-qr'
+    $filename = $slug . '-qr.' . $qr_format;
+
+    // Генерація URL для запиту до API
+    $api_url = sprintf(
+        'https://api.qrserver.com/v1/create-qr-code/?size=%s&color=%s&data=%s&format=%s',
+        urlencode($qr_size),
+        urlencode($qr_color),
+        urlencode($qr_url),
+        urlencode($qr_format)
+    );
+
+    // Виконання запиту до API для отримання QR-коду
     $response = wp_remote_get($api_url);
 
     if (is_wp_error($response)) {
         wp_send_json_error(array('message' => 'Помилка при отриманні QR-коду через API.'));
     }
 
-    // Отримуємо тіло відповіді (зображення QR-коду)
+    // Отримуємо тіло відповіді (QR-код)
     $body = wp_remote_retrieve_body($response);
     if (empty($body)) {
         wp_send_json_error(array('message' => 'Порожня відповідь від API.'));
     }
 
-    // Зберігаємо зображення QR-коду у тимчасовий файл
+    // Зберігаємо QR-код у тимчасовий файл
     $upload_dir = wp_upload_dir();
-    $filename = 'qr-code-' . $post_id . '.png';
     $filepath = $upload_dir['path'] . '/' . $filename;
 
-    // Записуємо зображення QR-коду в файл
+    // Записуємо QR-код у файл
     $result = file_put_contents($filepath, $body);
     if (!$result) {
         wp_send_json_error(array('message' => 'Не вдалося зберегти QR-код.'));
@@ -70,7 +90,7 @@ function acf_generate_qr_code() {
         'post_status'    => 'inherit',
     );
 
-    // Вставляємо файл в медіабібліотеку
+    // Вставляємо файл у медіабібліотеку
     $attach_id = wp_insert_attachment($attachment, $filepath);
 
     // Генеруємо метадані для зображення
